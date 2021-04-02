@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.w3.org/1999/xhtml">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Remote Tool</title>
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+</head>
+
+<body>
+<p style="text-align:center;" th:text="'Remote IP：' + ${IP}"></p>
+<div style="width: 90px;float: left;margin-left: 20px">
+    <button id='mouseLeft' class="ant-btn ant-btn-blue">鼠标左键</button>
+</div>
+<div style="width: 90px;float: right;margin-right: 20px">
+    <button id='mouseRight' class="ant-btn ant-btn-blue">鼠标右键</button>
+</div>
+
+<img id='canvas' src="/static/img/bg.jpg" style="width: 100%"/>
+<div style="text-align: center">
+    <button id='toKeyboard' class="ant-btn ant-btn-blue" type="button" style="height: 30px;text-align: center" onclick="window.location.href='/remote/keyboard'" >打开键盘</button>
+</div>
+
+<p style="text-align: center">状态:<span id="staus"></span></p>
+<!--<p>前端x,y</p>-->
+<!--<p id="xvalue1"></p>-->
+<!--<p>后端x,y</p>-->
+<!--<p id="xvalue2"></p>-->
+<a href="https://gitee.com/kinhoy" target="_blank">
+    <div id="footer">Copyright © 2020 KINHOY</div>
+</a>
+</body>
+
+<script src="/static/js/jquery.min.js"></script>
+<script type="application/javascript">
+    var MAIN_X;
+    var MAIN_Y;
+    $(function () {
+        function init() {
+            MAIN_X = 0;
+            MAIN_Y = 0;
+            joystickdraw(BIG_CIRCUIT_R + POS_X, BIG_CIRCUIT_R + POS_Y);
+        }
+
+        function getXY(x, y) {
+            var mouse2centerlength = Math.sqrt(x * x + y * y);
+            var newx = x;
+            var newy = y;
+            if (mouse2centerlength > BIG_CIRCUIT_R) {
+                var proportion = mouse2centerlength / BIG_CIRCUIT_R;
+                newx = x / proportion;
+                newy = y / proportion;
+            }
+            return {x: newx, y: newy};
+        }
+
+        function joystickdraw(posx, posy) {
+           // $('#xvalue1').text(posx + "," + posy);
+            var pos = getXY(posx - POS_X - BIG_CIRCUIT_R, posy - POS_Y - BIG_CIRCUIT_R);
+            var temp_x = parseInt(pos.x / BIG_CIRCUIT_R * 1000);
+            var temp_y = parseInt(pos.y / BIG_CIRCUIT_R * 1000);
+            output.x = temp_x - MAIN_X;
+            output.y = temp_y - MAIN_Y;
+            output.cmd = "MM";
+            sendwebsocket(output);
+            MAIN_X = temp_x;
+            MAIN_Y = temp_y;
+            $('#xvalue2').text(output.x + "," + output.y);
+        }
+
+        function sendwebsocket(pos) {
+            if (websocket.readyState === WebSocket.OPEN) {
+                websocket.send(JSON.stringify(pos))
+            }
+        }
+
+        function dragstart_event(e) {
+            //$('#xvalue').text("dragstart_event");
+            mousedown = true;
+            joystickdraw(e.offsetX, e.offsetY)
+        }
+
+        function dragging_event(e) {
+            //$('#xvalue').text("dragging_event");
+            if (mousedown) {
+                joystickdraw(e.offsetX, e.offsetY)
+            }
+        }
+
+        function dragstop_event() {
+            //$('#xvalue').text("dragstop_event");
+            mousedown = false;
+            init();
+        }
+
+        function touchstart_event(e) {
+            //$('#xvalue').text("touchstart_event");
+            mousedown = true;
+            joystickdraw(e.touches[0].clientX, e.touches[0].clientY)
+        }
+
+        function touching_event(e) {
+            //$('#xvalue').text("touching_event");
+            if (mousedown) {
+                joystickdraw(e.touches[0].clientX, e.touches[0].clientY)
+            }
+        }
+
+        function touchstop_event() {
+            //$('#xvalue').text("touchstop_event");
+            mousedown = false;
+            init();
+        }
+
+        function mouseClick(opt) {
+            if (opt === 1) {
+                //left
+                output.cmd = "ML";
+            } else {
+                //right
+                output.cmd = "MR";
+            }
+            sendwebsocket(output)
+        }
+
+        var screen_width = document.documentElement.clientWidth;
+        if (screen_width > 350) {
+            screen_width = 350;
+        }
+        var host = "[[${IP}]]";
+        var mousedown = false;
+        var websocket = new WebSocket("ws://" + host + ":8080/ws");
+        websocket.onopen = function (evt) {
+            console.log("open");
+            $('#staus').text("connecting");
+        };
+        websocket.onclose = function (evt) {
+            console.log("close");
+            $('#staus').text("closed");
+        };
+        websocket.onerror = function (evt) {
+            console.log("error", evt);
+            $('#staus').text("error");
+        };
+        var mycanvas = document.getElementById('canvas');
+
+        var POS_X = 100;
+        var POS_Y = 100;
+        var BIG_CIRCUIT_R = screen_width / 4;
+        var output = {}; //输出值 -1000~1000
+
+        mycanvas.onmousedown = dragstart_event;
+        mycanvas.onmousemove = dragging_event;
+        mycanvas.onmouseup = dragstop_event;
+
+        mycanvas.ontouchstart = touchstart_event;
+        mycanvas.ontouchmove = touching_event;
+        mycanvas.ontouchend = touchstop_event;
+        document.getElementById('mouseLeft').addEventListener('click', function () {
+            mouseClick(1);
+        });
+        document.getElementById('mouseRight').addEventListener('click', function () {
+            mouseClick(0);
+        });
+        init();
+    });
+</script>
+<style>
+    button {
+        border: none;
+        outline: none;
+    }
+    .ant-btn {
+        line-height: 1.499;
+        position: relative;
+        display: inline-block;
+        font-weight: 400;
+        white-space: nowrap;
+        text-align: center;
+        background-image: none;
+        border: 1px solid transparent;
+        -webkit-box-shadow: 0 2px 0 rgba(0, 0, 0, 0.015);
+        box-shadow: 0 2px 0 rgba(0, 0, 0, 0.015);
+        cursor: pointer;
+        -webkit-transition: all .3s cubic-bezier(.645, .045, .355, 1);
+        transition: all .3s cubic-bezier(.645, .045, .355, 1);
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+        -ms-touch-action: manipulation;
+        touch-action: manipulation;
+        height: 50px;
+        padding: 0 15px;
+        font-size: 14px;
+        border-radius: 4px;
+        color: rgba(0, 0, 0, 0.65);
+        background-color: #fff;
+        border-color: #d9d9d9;
+    }
+
+    .ant-btn-blue {
+        color: #fff;
+        background-color: #1890ff;
+        border-color: #1890ff;
+        text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.12);
+        -webkit-box-shadow: 0 2px 0 rgba(0, 0, 0, 0.045);
+        box-shadow: 0 2px 0 rgba(0, 0, 0, 0.045);
+    }
+
+    #footer {
+        height: 40px;
+        line-height: 40px;
+        position: fixed;
+        bottom: 0;
+        width: 100%;
+        text-align: center;
+        background: #fff;
+        color: #333;
+        font-family: Arial;
+        font-size: 12px;
+        letter-spacing: 1px;
+    }
+</style>
+</html>
